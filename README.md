@@ -1,7 +1,7 @@
 # About
 
 This is a partial [MessagePack](http://msgpack.org) implementation for
-serilize the lua Number, String and Array(table) into binary string.
+serializing Lua Number, String and Array(table) into binary string.
 Please _NOTE_ that this module __ONLY__ run on [luajit](http://luajit.org).
 
 Performance is the main goal here. I try not to include any NYI
@@ -25,8 +25,8 @@ example,
     local mp = require "msgpack"
 
     local nested = {23.58, "hello world", {42, "the end"}}
-    local serilized = mp.pack(nested)
-    local deserilized = mp.unpack(serilized)
+    local serialized = mp.pack(nested)
+    local deserialized = mp.unpack(serialized)
 
 # License
 
