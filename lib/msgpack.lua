@@ -8,6 +8,7 @@
 --------------------------------------------------------
 
 
+local spec = require "msgpack.spec"
 local object = require "msgpack.object"
 
 local _M = {}
@@ -23,8 +24,11 @@ function _M.pack(obj)
     end
 end
 
-function _M.unpack(obj)
-    error("NYI currently")
+function _M.unpack(str)
+    local t = string.byte(str)
 end
+
+print(object.ddouble(object.double(23.5)))
+print(object.dstring(object.string("hello world")))
 
 return _M
