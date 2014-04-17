@@ -28,7 +28,4 @@ function _M.unpack(str)
     local t = string.byte(str)
 end
 
-print(object.ddouble(object.double(23.5)))
-print(object.dstring(object.string("hello world")))
-
 return _M

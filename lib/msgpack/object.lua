@@ -19,8 +19,8 @@ local _M = {}
 
 
 local double = ffi.typeof("double [1]")
-local byte2 = ffi.typeof("uint16_t [1]")
-local byte4 = ffi.typeof("uint32_t [1]")
+local uint16 = ffi.typeof("uint16_t [1]")
+local uint32 = ffi.typeof("uint32_t [1]")
 
 ---------------------------
 -- Serialization related --
@@ -32,7 +32,7 @@ function _M.double(number)
     return head1 .. obj_str
 end
 
-local function _family0135(obj_str, len, headers, ranges)
+local function _family0124(obj_str, len, headers, ranges)
     -- 0: length is stored in the head byte
     -- 1: length is stored in the next byte
     -- 2: length is stored in the next two bytes
@@ -46,11 +46,11 @@ local function _family0135(obj_str, len, headers, ranges)
         return head1 .. head2 .. obj_str
     elseif len < ranges[3] then
         local head1 = string.char(headers[3])
-        local head2 = string.reverse(ffi.string(byte2(len)))
+        local head2 = string.reverse(ffi.string(uint16(len)))
         return head1 .. head2 .. obj_str
     elseif len < ranges[4] then
         local head1 = string.char(headers[4])
-        local head2 = string.reverse(ffi.string(byte4(len)))
+        local head2 = string.reverse(ffi.string(uint32(len)))
         return head1 .. head2 .. obj_str
     end
     return nil
@@ -60,7 +60,7 @@ function _M.string(str)
     local len = string.len(str)
     local headers = {spec.fixstr1, spec.str8, spec.str16, spec.str32}
     local ranges = {31, 0xFF, 0xFFFF, 0xFFFFFFFF}
-    return _family0135(str, len, headers, ranges)
+    return _family0124(str, len, headers, ranges)
 end
 
 function _M.array(arr)
@@ -80,7 +80,7 @@ function _M.array(arr)
             childs[#childs + 1] = _M.array(v)
         end
     end
-    return _family0135(table.concat(childs), len, headers, ranges)
+    return _family0124(table.concat(childs), len, headers, ranges)
 end
 
 -----------------------------
@@ -123,47 +123,86 @@ function _M.ddouble(str)
     if head1 ~= spec.float64 then
         return nil, 0
     end
-    local rstr = string.reverse(str)
+    local rstr = string.reverse(string.sub(str, 1, 9))
     local data = string.sub(rstr, 1, 8)
     local number = double()
     ffi.copy(number, data, 8)
     return number[0], 9
 end
 
-function _M._dfamily0135(str, headers)
+function _M.dstring(str)
+    -- @return: (data, len). len the string consumed
     local head1 = string.byte(str)
     local head2
     local len
-    if head1 >= headers[1] and head1 <= headers[2] then
+    if head1 >= spec.fixstr1 and head1 <= spec.fixstr2 then
         -- fixstr
         len = head1 - spec.fixstr1
-        return string.sub(str, 2, len + 1), len
-    elseif head1 == headers[3] then
+        return string.sub(str, 2, len + 1), len + 1
+    elseif head1 == spec.str8 then
         len = string.byte(str, 2, 2)
-        return string.sub(str, 3, len + 2), len
-    elseif head1 == headers[4] then
+        return string.sub(str, 3, len + 2), len + 2
+    elseif head1 == spec.str16 then
         head2 = string.reverse(string.sub(str, 2, 3))
-        len = byte2()
+        len = uint16()
         ffi.copy(len, head2, 2)
         len = len[0]
-        return string.sub(str, 4, len + 3), len
-    elseif head1 == headers[5] then
+        return string.sub(str, 4, len + 3), len + 3
+    elseif head1 == spec.str32 then
         head2 = string.reverse(string.sub(str, 2, 5))
-        len = byte4()
+        len = uint32()
         ffi.copy(len, head2, 4)
         len = len[0]
-        return string.sub(str, 4, len + 5), len
+        return string.sub(str, 6, len + 5), len + 5
     end
     return nil, 0
 end
 
-function _M.dstring(str)
-    local headers = {spec.fixstr1, spec.fixstr2, spec.str8, spec.str16, spec.str32}
-    return _M._dfamily0135(str, headers)
+function _M._darray(str)
+    -- @return: (data, len). len: number of items in array
+    local head1 = string.byte(str)
+    local head2
+    local len
+    if head1 >= spec.fixarray1 and head1 <= spec.fixarray2 then
+        -- fixstr
+        len = head1 - spec.fixarray1
+        return string.sub(str, 2), len
+    elseif head1 == spec.array16 then
+        head2 = string.reverse(string.sub(str, 2, 3))
+        len = uint16()
+        ffi.copy(len, head2, 2)
+        len = len[0]
+        return string.sub(str, 3), len
+    elseif head1 == spec.array32 then
+        head2 = string.reverse(string.sub(str, 2, 5))
+        len = uint32()
+        ffi.copy(len, head2, 4)
+        len = len[0]
+        return string.sub(str, 5), len
+    end
+    return nil, 0
 end
 
 function _M.darray(str)
-    local headers = {spec.fixarray1, spec.fixarray2, nil, spec.array16, spec.array32}
+    local substr, nitem = _M._darray(str)
+    local objs = {}
+    local len = 0
+    local head, sublen
+    for i=1,nitem do
+        head = string.byte(substr)
+        if _M.is_double(head) then
+            objs[#objs + 1], sublen = _M.ddouble(substr)
+            substr = string.sub(substr, sublen + 1)
+        elseif _M.is_string(head) then
+            objs[#objs + 1], sublen = _M.dstring(substr)
+            substr = string.sub(substr, sublen + 1)
+        elseif _M.is_array(head) then
+            objs[#objs + 1], sublen = _M.darray(substr)
+            substr = string.sub(substr, sublen + 1)
+        end
+        len = len + sublen
+    end
+    return objs, len
 end
 
 return _M
