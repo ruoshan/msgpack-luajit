@@ -16,16 +16,23 @@ local _M = {}
 function _M.pack(obj)
     local t = type(obj)
     if t == "number" then
-        return object.double(obj)
+        return object.encode_double(obj)
     elseif t == "string" then
-        return object.double(obj)
+        return object.encode_string(obj)
     elseif t == "table" then
-        return object.array(obj)
+        return object.encode_array(obj)
     end
 end
 
 function _M.unpack(str)
-    local t = string.byte(str)
+    local head1 = string.byte(str)
+    if object.is_double(head1) then
+        return object.decode_double(str)
+    elseif object.is_string(head1) then
+        return object.decode_string(str)
+    elseif object.is_array(head1) then
+        return object.decode_array(str)
+    end
 end
 
 return _M

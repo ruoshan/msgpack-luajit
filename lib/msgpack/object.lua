@@ -26,7 +26,7 @@ local uint32 = ffi.typeof("uint32_t [1]")
 -- Serialization related --
 ---------------------------
 
-function _M.double(number)
+function _M.encode_double(number)
     local head1 = string.char(spec.float64)
     local obj_str = string.reverse(ffi.string(double(number), 8))
     return head1 .. obj_str
@@ -56,28 +56,27 @@ local function _family0124(obj_str, len, headers, ranges)
     return nil
 end
 
-function _M.string(str)
+function _M.encode_string(str)
     local len = string.len(str)
     local headers = {spec.fixstr1, spec.str8, spec.str16, spec.str32}
     local ranges = {31, 0xFF, 0xFFFF, 0xFFFFFFFF}
     return _family0124(str, len, headers, ranges)
 end
 
-function _M.array(arr)
+function _M.encode_array(arr)
     local len = #arr
     --NOTE: not spec for array8
     local headers = {spec.fixarray1, spec.array16, spec.array16, spec.array32}
     local ranges = {15, 0xFFFF, 0xFFFF, 0xFFFFFFFF}
     local childs = {}
-    local t
     for _,v in ipairs(arr) do
-        t = type(v)
+        local t = type(v)
         if t == "number" then
-            childs[#childs + 1] = _M.double(v)
+            childs[#childs + 1] = _M.encode_double(v)
         elseif t == "string" then
-            childs[#childs + 1] = _M.string(v)
+            childs[#childs + 1] = _M.encode_string(v)
         elseif t == "table" then
-            childs[#childs + 1] = _M.array(v)
+            childs[#childs + 1] = _M.encode_array(v)
         end
     end
     return _family0124(table.concat(childs), len, headers, ranges)
@@ -117,8 +116,8 @@ function _M.is_double(head)
     return false
 end
 
-function _M.ddouble(str)
-    -- @return: (number, len). len: the string consumed
+function _M.decode_double(str)
+    -- @return: (number, len). len: the length of string consumed
     local head1 = string.byte(str)
     if head1 ~= spec.float64 then
         return nil, 0
@@ -130,8 +129,8 @@ function _M.ddouble(str)
     return number[0], 9
 end
 
-function _M.dstring(str)
-    -- @return: (data, len). len the string consumed
+function _M.decode_string(str)
+    -- @return: (data, len). len the length of string consumed
     local head1 = string.byte(str)
     local head2
     local len
@@ -158,7 +157,7 @@ function _M.dstring(str)
     return nil, 0
 end
 
-function _M._darray(str)
+function _M._decode_array(str)
     -- @return: (data, len). len: number of items in array
     local head1 = string.byte(str)
     local head2
@@ -183,21 +182,21 @@ function _M._darray(str)
     return nil, 0
 end
 
-function _M.darray(str)
-    local substr, nitem = _M._darray(str)
+function _M.decode_array(str)
+    local substr, nitem = _M._decode_array(str)
     local objs = {}
     local len = 0
     local head, sublen
     for i=1,nitem do
         head = string.byte(substr)
         if _M.is_double(head) then
-            objs[#objs + 1], sublen = _M.ddouble(substr)
+            objs[#objs + 1], sublen = _M.decode_double(substr)
             substr = string.sub(substr, sublen + 1)
         elseif _M.is_string(head) then
-            objs[#objs + 1], sublen = _M.dstring(substr)
+            objs[#objs + 1], sublen = _M.decode_string(substr)
             substr = string.sub(substr, sublen + 1)
         elseif _M.is_array(head) then
-            objs[#objs + 1], sublen = _M.darray(substr)
+            objs[#objs + 1], sublen = _M.decode_array(substr)
             substr = string.sub(substr, sublen + 1)
         end
         len = len + sublen
