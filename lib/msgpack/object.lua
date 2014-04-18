@@ -32,45 +32,49 @@ function _M.encode_double(number)
     return head1 .. obj_str
 end
 
-local function _family0124(obj_str, len, headers, ranges)
-    -- 0: length is stored in the head byte
-    -- 1: length is stored in the next byte
-    -- 2: length is stored in the next two bytes
-    -- 3: length is stored in the next four bytes
-    if len <= ranges[1] then
-        local head1 = string.char(headers[1] + len)
-        return head1 .. obj_str
-    elseif len < ranges[2] then
-        local head1 = string.char(headers[2])
-        local head2 = string.char(n)
-        return head1 .. head2 .. obj_str
-    elseif len < ranges[3] then
-        local head1 = string.char(headers[3])
-        local head2 = string.reverse(ffi.string(uint16(len)))
-        return head1 .. head2 .. obj_str
-    elseif len < ranges[4] then
-        local head1 = string.char(headers[4])
-        local head2 = string.reverse(ffi.string(uint32(len)))
-        return head1 .. head2 .. obj_str
-    end
-    return nil
-end
-
 function _M.encode_string(str)
     local len = string.len(str)
-    local headers = {spec.fixstr1, spec.str8, spec.str16, spec.str32}
-    local ranges = {31, 0xFF, 0xFFFF, 0xFFFFFFFF}
-    return _family0124(str, len, headers, ranges)
+    if len <= 31 then
+        local head1 = string.char(spec.fixstr1 + len)
+        return head1 .. str
+    elseif len < 0xFF then
+        local head1 = string.char(spec.str8)
+        local head2 = string.char(len)
+        return head1 .. head2 .. str
+    elseif len < 0xFFFF then
+        local head1 = string.char(spec.str16)
+        local head2 = string.reverse(ffi.string(uint16(len), 2))
+        return head1 .. head2 .. str
+    elseif len < 0xFFFFFFFF then
+        local head1 = string.char(spec.str32)
+        local head2 = string.reverse(ffi.string(uint32(len), 4))
+        return head1 .. head2 .. str
+    end
+end
+
+function _M._encode_array(items, len, headers, ranges)
+    -- @items: the string of array items
+    if len <= 15 then
+        local head1 = string.char(spec.fixarray1 + len)
+        return head1 .. items
+    elseif len < 0xFFFF then
+        local head1 = string.char(spec.array16)
+        print("=", len)
+        local head2 = string.reverse(ffi.string(uint16(len), 2))
+        return head1 .. head2 .. items
+    elseif len < 0xFFFFFFFF then
+        local head1 = string.char(spec.array32)
+        local head2 = string.reverse(ffi.string(uint32(len), 4))
+        return head1 .. head2 .. items
+    end
 end
 
 function _M.encode_array(arr)
     local len = #arr
-    --NOTE: not spec for array8
-    local headers = {spec.fixarray1, spec.array16, spec.array16, spec.array32}
-    local ranges = {15, 0xFFFF, 0xFFFF, 0xFFFFFFFF}
     local childs = {}
-    for _,v in ipairs(arr) do
-        local t = type(v)
+    local t
+    for i,v in ipairs(arr) do
+        t = type(v)
         if t == "number" then
             childs[#childs + 1] = _M.encode_double(v)
         elseif t == "string" then
@@ -79,7 +83,7 @@ function _M.encode_array(arr)
             childs[#childs + 1] = _M.encode_array(v)
         end
     end
-    return _family0124(table.concat(childs), len, headers, ranges)
+    return _M._encode_array(table.concat(childs), len, headers, ranges)
 end
 
 -----------------------------
