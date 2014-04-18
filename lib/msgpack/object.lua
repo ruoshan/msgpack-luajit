@@ -162,32 +162,34 @@ function _M.decode_string(str)
 end
 
 function _M._decode_array(str)
-    -- @return: (data, len). len: number of items in array
+    -- @return: (data, n, nbyte).
+    --          n: number of items in array
+    --          nbyte: number of bytes in header
     local head1 = string.byte(str)
     local head2
-    local len
+    local n
     if head1 >= spec.fixarray1 and head1 <= spec.fixarray2 then
         -- fixstr
-        len = head1 - spec.fixarray1
-        return string.sub(str, 2), len
+        n = head1 - spec.fixarray1
+        return string.sub(str, 2), n, 1
     elseif head1 == spec.array16 then
         head2 = string.reverse(string.sub(str, 2, 3))
-        len = uint16()
+        n = uint16()
         ffi.copy(len, head2, 2)
-        len = len[0]
-        return string.sub(str, 3), len
+        n = n[0]
+        return string.sub(str, 3), n, 3
     elseif head1 == spec.array32 then
         head2 = string.reverse(string.sub(str, 2, 5))
-        len = uint32()
-        ffi.copy(len, head2, 4)
-        len = len[0]
-        return string.sub(str, 5), len
+        n = uint32()
+        ffi.copy(n, head2, 4)
+        n = n[0]
+        return string.sub(str, 5), n, 5
     end
-    return nil, 0
+    return nil, 0, 0
 end
 
 function _M.decode_array(str)
-    local substr, nitem = _M._decode_array(str)
+    local substr, nitem, nbyte = _M._decode_array(str)
     local objs = {}
     local len = 0
     local head, sublen
@@ -205,7 +207,7 @@ function _M.decode_array(str)
         end
         len = len + sublen
     end
-    return objs, len
+    return objs, len + nbyte
 end
 
 return _M

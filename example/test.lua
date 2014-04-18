@@ -1,5 +1,6 @@
 #!/usr/bin/env luajit -jv
-package.path = "/usr/local/openresty/luajit/share/luajit-2.1.0-alpha/?.lua;?.lua;../lib/?.lua;;"
+--package.path = "/usr/local/openresty/luajit/share/luajit-2.1.0-alpha/?.lua;?.lua;../lib/?.lua;;"
+package.path = "?.lua;../lib/?.lua;;"
 local mp = require "msgpack"
 -- local js = require "cjson"
 -- local json = js.new()
