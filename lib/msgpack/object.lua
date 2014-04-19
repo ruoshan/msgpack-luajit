@@ -59,7 +59,6 @@ function _M._encode_array(items, len, headers, ranges)
         return head1 .. items
     elseif len < 0xFFFF then
         local head1 = string.char(spec.array16)
-        print("=", len)
         local head2 = string.reverse(ffi.string(uint16(len), 2))
         return head1 .. head2 .. items
     elseif len < 0xFFFFFFFF then
@@ -70,20 +69,19 @@ function _M._encode_array(items, len, headers, ranges)
 end
 
 function _M.encode_array(arr)
-    local len = #arr
-    local childs = {}
+    local childs = ""
     local t
     for i,v in ipairs(arr) do
         t = type(v)
         if t == "number" then
-            childs[#childs + 1] = _M.encode_double(v)
+            childs = childs .. _M.encode_double(v)
         elseif t == "string" then
-            childs[#childs + 1] = _M.encode_string(v)
+            childs = childs .. _M.encode_string(v)
         elseif t == "table" then
-            childs[#childs + 1] = _M.encode_array(v)
+            childs = childs .. _M.encode_array(v)
         end
     end
-    return _M._encode_array(table.concat(childs), len, headers, ranges)
+    return _M._encode_array(childs, #arr, headers, ranges)
 end
 
 -----------------------------
