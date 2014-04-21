@@ -14,6 +14,8 @@
 local ffi = require "ffi"
 local bit = require "bit"
 local spec = require "msgpack.spec"
+local s_reverse = string.reverse
+local s_sub = string.sub
 
 local _M = {}
 
@@ -21,6 +23,8 @@ local _M = {}
 local double = ffi.typeof("double [1]")
 local uint16 = ffi.typeof("uint16_t [1]")
 local uint32 = ffi.typeof("uint32_t [1]")
+local char8  = ffi.typeof("unsigned char [8]")
+local uint32x2 = ffi.typeof("uint32_t [2]")
 
 ---------------------------
 -- Serialization related --
@@ -89,123 +93,115 @@ end
 -----------------------------
 
 function _M.is_array(head)
-    if ((head >= spec.fixarray1 and
-             head <= spec.fixarray2) or
+    return ((head >= spec.fixarray1 and
+                 head <= spec.fixarray2) or
             head == spec.array16 or
             head == spec.array32)
-    then
-        return true
-    end
-    return false
 end
 
 function _M.is_string(head)
-    if ((head >= spec.fixstr1 and
-             head <= spec.fixstr2) or
+    return ((head >= spec.fixstr1 and
+                 head <= spec.fixstr2) or
             head == spec.str8 or
             head == spec.str16 or
             head == spec.str32)
-    then
-        return true
-    end
-    return false
 end
 
 function _M.is_double(head)
-    if (head == spec.float64) then
-        return true
-    end
-    return false
+    return head == spec.float64
 end
 
-function _M.decode_double(str)
-    -- @return: (number, len). len: the length of string consumed
-    local head1 = string.byte(str)
-    if head1 ~= spec.float64 then
-        return nil, 0
-    end
-    local rstr = string.reverse(string.sub(str, 1, 9))
-    local data = string.sub(rstr, 1, 8)
-    local number = double()
-    ffi.copy(number, data, 8)
-    return number[0], 9
+local function str2double(str8)
+    -- convert big-endian double in string(8bit) array to little-endian double
+    -- @str8: 8 bytes raw string
+    local B32x2 = uint32x2()
+    ffi.copy(B32x2, str8, 8)
+    local i0, i1 = B32x2[0], B32x2[1]
+    B32x2[1] = bit.bswap(i0)
+    B32x2[0] = bit.bswap(i1)
+    local d = double()
+    ffi.copy(d, B32x2, 8)
+    return d[0]
 end
 
-function _M.decode_string(str)
-    -- @return: (data, len). len the length of string consumed
-    local head1 = string.byte(str)
+function _M.decode_double(str, offset)
+    -- @return: (number, offset).
+    offset = offset + 1
+    local n = str2double(s_sub(str, offset, offset + 7))
+    return n, offset + 8
+end
+
+function _M.decode_string(str, offset)
+    -- @return: (data, offset).
+    local head1 = string.byte(str, offset)
+    offset = offset + 1
     local head2
     local len
     if head1 >= spec.fixstr1 and head1 <= spec.fixstr2 then
         -- fixstr
         len = head1 - spec.fixstr1
-        return string.sub(str, 2, len + 1), len + 1
+        return string.sub(str, offset, len + offset - 1), len + offset
     elseif head1 == spec.str8 then
-        len = string.byte(str, 2, 2)
-        return string.sub(str, 3, len + 2), len + 2
+        len = string.byte(str, offset)
+        return string.sub(str, offset + 1, len + offset), len + offset + 1
     elseif head1 == spec.str16 then
-        head2 = string.reverse(string.sub(str, 2, 3))
+        head2 = string.reverse(string.sub(str, offset, offset + 1))
         len = uint16()
         ffi.copy(len, head2, 2)
         len = len[0]
-        return string.sub(str, 4, len + 3), len + 3
+        return string.sub(str, offset + 2, len + offset + 1), len + offset + 2
     elseif head1 == spec.str32 then
-        head2 = string.reverse(string.sub(str, 2, 5))
+        head2 = string.reverse(string.sub(str, offset, offset + 3))
         len = uint32()
         ffi.copy(len, head2, 4)
         len = len[0]
-        return string.sub(str, 6, len + 5), len + 5
+        return string.sub(str, offset + 4, len + offset + 3), len + offset + 4
     end
-    return nil, 0
 end
 
-function _M._decode_array(str)
-    -- @return: (data, n, nbyte).
+function _M._decode_array(str, offset)
+    -- @offset: is the start position in the str. (includesive)
+    -- @return: (n, offset).
     --          n: number of items in array
-    --          nbyte: number of bytes in header
-    local head1 = string.byte(str)
+    --          offset: position of the real data. (includesive)
+    local head1 = string.byte(str, offset)
     local head2
-    local n
+    local len
+    offset = offset + 1
     if head1 >= spec.fixarray1 and head1 <= spec.fixarray2 then
         -- fixstr
         n = head1 - spec.fixarray1
-        return string.sub(str, 2), n, 1
+        return n, offset
     elseif head1 == spec.array16 then
-        head2 = string.reverse(string.sub(str, 2, 3))
-        n = uint16()
+        head2 = string.reverse(string.sub(str, offset, offset + 1))
+        len = uint16()
         ffi.copy(len, head2, 2)
-        n = n[0]
-        return string.sub(str, 3), n, 3
+        len = len[0]
+        return len, offset + 2
     elseif head1 == spec.array32 then
-        head2 = string.reverse(string.sub(str, 2, 5))
-        n = uint32()
-        ffi.copy(n, head2, 4)
-        n = n[0]
-        return string.sub(str, 5), n, 5
+        head2 = string.reverse(string.sub(str, offset, offset + 3))
+        len = uint32()
+        ffi.copy(len, head2, 4)
+        len = len[0]
+        return len, offset + 4
     end
-    return nil, 0, 0
 end
 
-function _M.decode_array(str)
-    local substr, nitem, nbyte = _M._decode_array(str)
+function _M.decode_array(str, offset)
+    local nitem, offset = _M._decode_array(str, offset)
     local objs = {}
-    local len = 0
-    local head, sublen
+    local head
     for i=1,nitem do
-        head = string.byte(substr)
+        head = string.byte(str, offset)
         if _M.is_double(head) then
-            objs[#objs + 1], sublen = _M.decode_double(substr)
-            substr = string.sub(substr, sublen + 1)
+            objs[i], offset = _M.decode_double(str, offset)
         elseif _M.is_string(head) then
-            objs[#objs + 1], sublen = _M.decode_string(substr)
-            substr = string.sub(substr, sublen + 1)
+            objs[i], offset = _M.decode_string(str, offset)
         elseif _M.is_array(head) then
-            objs[#objs + 1], sublen = _M.decode_array(substr)
-            substr = string.sub(substr, sublen + 1)
+            objs[i], offset = _M.decode_array(str, offset)
         end
-        len = len + sublen
     end
-    return objs, len + nbyte
+    return objs, offset
 end
 
 return _M

@@ -27,11 +27,11 @@ end
 function _M.unpack(str)
     local head1 = string.byte(str)
     if object.is_double(head1) then
-        return object.decode_double(str)
+        return object.decode_double(str, 1)
     elseif object.is_string(head1) then
-        return object.decode_string(str)
+        return object.decode_string(str, 1)
     elseif object.is_array(head1) then
-        return object.decode_array(str)
+        return object.decode_array(str, 1)
     end
 end
 
