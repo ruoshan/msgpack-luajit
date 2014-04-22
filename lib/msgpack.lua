@@ -9,29 +9,30 @@
 
 
 local spec = require "msgpack.spec"
-local object = require "msgpack.object"
+local encode = require "msgpack.encode"
+local decode = require "msgpack.decode"
 
 local _M = {}
 
 function _M.pack(obj)
     local t = type(obj)
     if t == "number" then
-        return object.encode_double(obj)
+        return encode.double(obj)
     elseif t == "string" then
-        return object.encode_string(obj)
+        return encode.string(obj)
     elseif t == "table" then
-        return object.encode_array(obj)
+        return encode.array(obj)
     end
 end
 
 function _M.unpack(str)
     local head1 = string.byte(str)
-    if object.is_double(head1) then
-        return object.decode_double(str, 1)
-    elseif object.is_string(head1) then
-        return object.decode_string(str, 1)
-    elseif object.is_array(head1) then
-        return object.decode_array(str, 1)
+    if decode.is_double(head1) then
+        return decode.decode_double(str, 1)
+    elseif decode.is_string(head1) then
+        return decode.decode_string(str, 1)
+    elseif decode.is_array(head1) then
+        return decode.decode_array(str, 1)
     end
 end
 
