@@ -13,6 +13,11 @@ local spec = require "msgpack.spec"
 local s_reverse = string.reverse
 local s_sub = string.sub
 
+local floor = require'math'.floor
+local frexp = require'math'.frexp
+local ldexp = require'math'.ldexp
+local huge = require'math'.huge
+
 local _M = {}
 
 
@@ -51,6 +56,32 @@ function _M.double(str, offset)
     local rstr = s_reverse(s_sub(str, offset, offset + 7))
     ffi.copy(n, rstr, 8)
     return n[0], offset + 8
+end
+
+function _M.double2(str, offset)
+    offset = offset + 1
+    local b1, b2, b3, b4, b5, b6, b7, b8 = string.byte(str, offset, offset + 7)
+    local sign = b1 > 0x7F
+    local expo = (b1 % 0x80) * 0x10 + floor(b2 / 0x10)
+    local mant = ((((((b2 % 0x10) * 0x100 + b3) * 0x100 + b4) * 0x100 + b5) * 0x100 + b6) * 0x100 + b7) * 0x100 + b8
+    if sign then
+        sign = -1
+    else
+        sign = 1
+    end
+    local n
+    if mant == 0 and expo == 0 then
+        n = sign * 0.0
+    elseif expo == 0x7FF then
+        if mant == 0 then
+            n = sign * huge
+        else
+            n = 0.0/0.0
+        end
+    else
+        n = sign * ldexp(1.0 + mant / 0x10000000000000, expo - 0x3FF)
+    end
+    return n, offset + 8
 end
 
 function _M.fixstr(str, offset)
