@@ -14,6 +14,7 @@ Other option may be [lua-MessagePack](http://fperrad.github.io/lua-MessagePack/)
 
 # Status
 
+Not Yet Fully Implemented, Types been implemented are:
 * msgpack.unpack(): Number, Array, String
 * msgpack.pack(): Number, Array, String
 
@@ -28,6 +29,10 @@ example,
     local nested = {23.58, "hello world", {42, "the end"}}
     local serialized = mp.pack(nested)
     local deserialized = mp.unpack(serialized)
+
+# Benchmark
+
+To be presented.
 
 # License
 
