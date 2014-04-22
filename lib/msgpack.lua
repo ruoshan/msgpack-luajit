@@ -26,14 +26,7 @@ function _M.pack(obj)
 end
 
 function _M.unpack(str)
-    local head1 = string.byte(str)
-    if decode.is_double(head1) then
-        return decode.decode_double(str, 1)
-    elseif decode.is_string(head1) then
-        return decode.decode_string(str, 1)
-    elseif decode.is_array(head1) then
-        return decode.decode_array(str, 1)
-    end
+    return decode.decode(str, 1)
 end
 
 return _M

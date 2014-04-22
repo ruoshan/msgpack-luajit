@@ -30,7 +30,8 @@ local uint32 = ffi.typeof("uint32_t [1]")
 
 function _M.double(number)
     local head1 = string.char(spec.float64)
-    local obj_str = string.reverse(ffi.string(double(number), 8))
+    local n = double(number)
+    local obj_str = s_reverse(ffi.string(n, 8))
     return head1 .. obj_str
 end
 
@@ -45,11 +46,11 @@ function _M.string(str)
         return head1 .. head2 .. str
     elseif len < 0xFFFF then
         local head1 = string.char(spec.str16)
-        local head2 = string.reverse(ffi.string(uint16(len), 2))
+        local head2 = s_reverse(ffi.string(uint16(len), 2))
         return head1 .. head2 .. str
     elseif len < 0xFFFFFFFF then
         local head1 = string.char(spec.str32)
-        local head2 = string.reverse(ffi.string(uint32(len), 4))
+        local head2 = s_reverse(ffi.string(uint32(len), 4))
         return head1 .. head2 .. str
     end
 end
@@ -61,11 +62,11 @@ function _M._encode_array(items, len, headers, ranges)
         return head1 .. items
     elseif len < 0xFFFF then
         local head1 = string.char(spec.array16)
-        local head2 = string.reverse(ffi.string(uint16(len), 2))
+        local head2 = s_reverse(ffi.string(uint16(len), 2))
         return head1 .. head2 .. items
     elseif len < 0xFFFFFFFF then
         local head1 = string.char(spec.array32)
-        local head2 = string.reverse(ffi.string(uint32(len), 4))
+        local head2 = s_reverse(ffi.string(uint32(len), 4))
         return head1 .. head2 .. items
     end
 end

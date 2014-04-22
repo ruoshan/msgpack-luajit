@@ -10,11 +10,12 @@ This explains why hash table is _NOT_ implemented, as iterating through
 hash table requires `pairs`, which generates a NYI Bytecode.
 
 Other option may be [lua-MessagePack](http://fperrad.github.io/lua-MessagePack/).
-`luajit-msgpack` is much faster than `lua-MessagePack` with more code be JIT compiled.
+`msgpack-luajit` is little faster than `lua-MessagePack` with more code be JIT compiled.
 
 # Status
 
-* msgpack.unpack() is NOT implemented yet.
+* msgpack.unpack(): Number, Array, String
+* msgpack.pack(): Number, Array, String
 
 # Usage
 
