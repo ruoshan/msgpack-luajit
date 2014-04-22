@@ -20,9 +20,9 @@ local s_sub = string.sub
 local _M = {}
 
 
-local double = ffi.typeof("double [1]")
-local uint16 = ffi.typeof("uint16_t [1]")
-local uint32 = ffi.typeof("uint32_t [1]")
+local double = ffi.new("double [1]")
+local uint16 = ffi.new("uint16_t [1]")
+local uint32 = ffi.new("uint32_t [1]")
 
 ---------------------------
 -- Serialization related --
@@ -30,8 +30,8 @@ local uint32 = ffi.typeof("uint32_t [1]")
 
 function _M.double(number)
     local head1 = string.char(spec.float64)
-    local n = double(number)
-    local obj_str = s_reverse(ffi.string(n, 8))
+    double[0] = number
+    local obj_str = s_reverse(ffi.string(double, 8))
     return head1 .. obj_str
 end
 
@@ -62,11 +62,13 @@ function _M._encode_array(items, len, headers, ranges)
         return head1 .. items
     elseif len < 0xFFFF then
         local head1 = string.char(spec.array16)
-        local head2 = s_reverse(ffi.string(uint16(len), 2))
+        uint16[0] = len
+        local head2 = s_reverse(ffi.string(uint16, 2))
         return head1 .. head2 .. items
     elseif len < 0xFFFFFFFF then
         local head1 = string.char(spec.array32)
-        local head2 = s_reverse(ffi.string(uint32(len), 4))
+        uint32[0] = len
+        local head2 = s_reverse(ffi.string(uint32, 4))
         return head1 .. head2 .. items
     end
 end
