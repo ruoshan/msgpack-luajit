@@ -8,6 +8,7 @@
 --------------------------------------------------------
 
 local ffi = require "ffi"
+local memcopy = ffi.copy
 local bit = require "bit"
 local spec = require "msgpack.spec"
 local s_reverse = string.reverse
@@ -17,9 +18,10 @@ local s_byte = string.byte
 local _M = {}
 
 
-local double = ffi.new("double [1]")
+local double = ffi.new("union {double d; uint64_t i; uint8_t c[8];}")
 local uint16 = ffi.new("uint16_t [1]")
 local uint32 = ffi.new("uint32_t [1]")
+local uint8array_t = ffi.typeof("uint8_t [?]")
 
 -----------------------------
 -- Deserialization related --
@@ -44,30 +46,29 @@ function _M.is_double(head)
     return head == spec.float64
 end
 
-function _M.double(str, offset)
+function _M.double(cstr, offset)
     -- @return: (number, offset).
-    offset = offset + 1
-    local rstr = s_reverse(s_sub(str, offset, offset + 7))
-    ffi.copy(double, rstr, 8)
-    return double[0], offset + 8
+    memcopy(double.c, cstr + offset + 1, 8)
+    double.i = bit.bswap(double.i) -- big-endian to little-endian
+    return double.d, offset + 9
 end
 
-function _M.fixstr(str, offset)
-    local len = s_byte(str, offset) - spec.fixstr1
+function _M.fixstr(cstr, offset)
+    local len = cstr[offset] - spec.fixstr1
     offset = offset + 1
-    return s_sub(str, offset, len + offset - 1), len + offset
+    return ffi.string(cstr + offset, len), len + offset
 end
 
-function _M.string8(str, offset)
+function _M.string8(cstr, offset)
     offset = offset + 1
-    len = s_byte(str, offset)
-    return s_sub(str, offset + 1, len + offset), len + offset + 1
+    local len = cstr[offset]
+    return ffi.string(cstr + offset, len), len + offset + 1
 end
 
 function _M.string16(str, offset)
     offset = offset + 1
     local len_2byte = s_reverse(s_sub(str, offset, offset + 1))
-    ffi.copy(uint16, len_2byte, 2)
+    memcopy(uint16, len_2byte, 2)
     len = uint16[0]
     return s_sub(str, offset + 2, len + offset + 1), len + offset + 2
 end
@@ -75,26 +76,26 @@ end
 function _M.string32(str, offset)
     offest = offset + 1
     local len_4byte = s_reverse(s_sub(str, offset, offset + 3))
-    ffi.copy(uint32, len_4byte, 4)
+    memcopy(uint32, len_4byte, 4)
     len = uint32[0]
     return s_sub(str, offset + 4, len + offset + 3), len + offset + 4
 end
 
-function _M.fixarray(str, offset)
-    local nitem = s_byte(str, offset) - spec.fixarray1
+function _M.fixarray(cstr, offset)
+    local nitem = cstr[offset] - spec.fixarray1
     local objs = {}
     local head
     offset = offset + 1
     for i=1,nitem do
-        head = s_byte(str, offset)
-        objs[i], offset = _M.unpackers[head](str, offset)
+        head = cstr[offset]
+        objs[i], offset = _M.unpackers[head](cstr, offset)
     end
     return objs, offset
 end
 
 function _M.array16(str, offset)
     local len_2byte = s_reverse(s_sub(str, offset + 1, offset + 2))
-    ffi.copy(uint16, len_2byte, 2)
+    memcopy(uint16, len_2byte, 2)
     local nitem = uint16[0]
     local objs = {}
     local head
@@ -109,7 +110,7 @@ end
 function _M.array32(str, offset)
     local len_4byte = s_reverse(s_sub(str, offset + 1, offset + 4))
     local nitem = uint32()
-    ffi.copy(nitem, len_4byte, 4)
+    memcopy(nitem, len_4byte, 4)
     nitem = nitem[0]
     local objs = {}
     local head
@@ -156,7 +157,10 @@ _M.unpackers = setmetatable(
 
 function _M.decode(str, offset)
     local head = s_byte(str, offset)
-    return _M.unpackers[head](str, offset)
+    local len = string.len(str)
+    local cstring = uint8array_t(len)
+    memcopy(cstring, str, len)
+    return _M.unpackers[head](cstring, 0)
 end
 
 return _M
